@@ -3,46 +3,65 @@
 /*                                                        :::      ::::::::   */
 /*   main.c                                             :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: otidahoh <otidahoh@student.42.fr>          +#+  +:+       +#+        */
+/*   By: cyborg95 <cyborg95@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/05 15:19:24 by otidahoh          #+#    #+#             */
-/*   Updated: 2026/10/06 15:46:18 by otidahoh         ###   ########.fr       */
+/*   Updated: 2026/10/19 14:20:14 by cyborg95         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
+
 #include <avr/io.h>
-#include <util/delay.h>
+#include <avr/interrupt.h>
+
+volatile uint8_t count = 0;
+
+void INT0_vect(void)
+    __attribute__((signal, used, externally_visible));
+void INT1_vect(void)
+    __attribute__((signal, used, externally_visible));
+
+void display(void)
+{
+    PORTB = (PORTB & ~0x17)
+          | (count & 0x07)
+          | ((count & 0x08) << 1);
+}
+
+/* SW1: increment */
+void INT0_vect(void)
+{
+    count = (count + 1) & 0x0F;
+    display();
+}
+
+/* SW2: decrement */
+void INT1_vect(void)
+{
+    count = (count - 1) & 0x0F;
+    display();
+}
 
 int main(void)
 {
-    // DDRB: Data Direction Register for Port B.
-    // Setting PB0 to 1 configures PB0 as an output for LED D1.
-    DDRB |= (1 << PB0);
+    /* D1, D2, D3, D4 outputs */
+    DDRB |= (1 << PB0) | (1 << PB1)
+          | (1 << PB2) | (1 << PB4);
 
-    // DDRD: Data Direction Register for Port D.
-    // Setting PD2 to 0 configures PD2 as an input for SW1.
-    DDRD &= ~(1 << PD2);
+    /* SW1 and SW2 inputs with pull-ups */
+    DDRD &= ~((1 << PD2) | (1 << PD3));
+    PORTD |= (1 << PD2) | (1 << PD3);
 
-    // PORTD: Output register for Port D.
-    // Because PD2 is an input, setting its bit to 1 enables
-    // the internal pull-up resistor.
-    PORTD |= (1 << PD2);
+    /* INT0 and INT1: falling edge */
+    EICRA = (1 << ISC01) | (1 << ISC11);
+
+    /* Enable both interrupts */
+    EIFR = (1 << INTF0) | (1 << INTF1);
+    EIMSK = (1 << INT0) | (1 << INT1);
+
+    display();
+    sei();
 
     while (1)
-    {
-        // PIND: Input register for Port D.
-        // When SW1 is pressed, PD2 is connected to GND and reads LOW.
-        if (!(PIND & (1 << PD2)))
-        {
-            // PORTB: Output register for Port B.
-            // Set PB0 HIGH to turn LED D1 on.
-            PORTB |= (1 << PB0);
-        }
-        else
-        {
-            // Set PB0 LOW to turn LED D1 off.
-            PORTB &= ~(1 << PB0);
-        }
-        _delay_ms(100); // Debounce delay to avoid rapid toggling
-    }
+        ;
 }
